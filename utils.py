@@ -5,8 +5,8 @@ from collections import Counter
 
 def get_from_sql(sql_query):
     with sqlite3.connect("netflix.db") as db:
-        cursor = db.cursor()
-        return cursor.execute(sql_query).fetchall()
+        db.row_factory = sqlite3.Row
+        return db.execute(sql_query).fetchall()
 
 
 def search_by_title(title: str):
@@ -18,15 +18,8 @@ def search_by_title(title: str):
                 f"limit 1 "
 
     if get_from_sql(sql_query):
-
-        return {
-            "title": get_from_sql(sql_query)[0][0],
-            "country": get_from_sql(sql_query)[0][1],
-            "release_year": get_from_sql(sql_query)[0][2],
-            "genre": get_from_sql(sql_query)[0][3],
-            "description": get_from_sql(sql_query)[0][4].rstrip('\n')
-        }
-
+        for item in get_from_sql(sql_query):
+            return dict(item)
     else:
         return f"фильм '{title}' в базе не найден!"
 
@@ -42,8 +35,7 @@ def search_year_to_year(start: int, end: int):
     response_sql = get_from_sql(sql_query)
 
     for item in response_sql:
-        result.append({'title': item[0], 'release_year': item[1]})
-
+        result.append(dict(item))
     return result
 
 
@@ -65,11 +57,7 @@ def search_by_rating(rating: str):
 
     response_sql = get_from_sql(sql_query)
     for item in response_sql:
-        result.append({
-            "title": item[0],
-            "rating": item[1],
-            "description": item[2].rstrip('\n')
-        })
+        result.append(dict(item))
 
     return result
 
@@ -83,15 +71,12 @@ def search_by_genre(genre: str):
 
     response_sql = get_from_sql(sql_query)
     for item in response_sql:
-        result.append({
-            "title": item[0],
-            "description": item[1].rstrip('\n')
-        })
+        result.append(dict(item))
 
     return result
 
 
-def search_by_casts(actors: list):
+def search_by_casts(input_names: list):
     """
     Напишите функцию, которая получает в качестве аргумента имена двух актеров, сохраняет всех актеров из колонки cast
     и возвращает список тех, кто играет с ними в паре больше 2 раз.
@@ -99,26 +84,28 @@ def search_by_casts(actors: list):
     :param actors:
     :return:
     """
-    sql_query = f"select lower (`cast`) " \
+    sql_query = f"select `cast` " \
                 f"from netflix " \
                 f"where `cast` != '' "
 
     response_sql = get_from_sql(sql_query)
-
-    actors_1 = actors[0].lower().strip()
-    actors_2 = actors[1].lower().strip()
-    # список актеров, которые играют с заданными актерам в паре больше 2 раз
-    actors_result = []
+    # преобразуем изначальный список актеров в множество
+    actors_input = set(name.lower() for name in input_names)
     # список актеров, которые играют с заданными актерам
     actors_list = []
+    # список актеров, которые играют с заданными актерам в паре больше 2 раз
+    actors_result = []
 
     for item in response_sql:
-        if actors_1 in item[0] and actors_2 in item[0]:
-            actors = [actor.strip() for actor in item[0].split(',') if
-                      actor.strip() != actors_1 and actor.strip() != actors_2]
+        # создаем список актеров из БД в виде множества
+        actors = set(actor.lower() for actor in list(item)[0].split(', '))
 
-            actors_list.extend(actors)
+        # если имена выбранных актеров присутствуют в итерируемом множества(список актеров фильма из БД)
+        if actors_input.issubset(actors):
+            # добавляем в результирующий список(вычитанием множеств убираем заданных актеров)
+            actors_list.extend(actors - actors_input)
 
+    # используем функцию Counter из collections для подсчета количества повторяющихся элементов
     for actor, count in Counter(actors_list).items():
         if count > 2:
             actors_result.append(actor)
@@ -144,14 +131,11 @@ def get_data_by_param(data: list):
     response_sql = get_from_sql(sql_query)
 
     for item in response_sql:
-        result.append({
-            "title": item[0],
-            "description": item[1].rstrip('\n')
-        })
+        result.append(dict(item))
 
     print(result)
 
 
 # search_by_casts(['Rose McIver', 'Ben Lamb'])
 # search_by_casts(['Jack Black', 'Dustin Hoffman'])
-get_data_by_param(['Movie', 2017, 'Children'])
+# get_data_by_param(['Movie', 2017, 'Children'])
